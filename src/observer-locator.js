@@ -59,6 +59,12 @@ var hasObjectObserve = (function detectObjectObserve() {
       return true;
     })();
 
+// http://jsperf.com/alternative-isfunction-implementations/4
+var getClass = {}.toString;
+function isFunction(object) {
+  return object && getClass.call(object) === '[object Function]';
+}
+
 function createObserversLookup(obj) {
   var value = {};
 
@@ -115,18 +121,28 @@ export class ObserverLocator {
       );
   }
 
-  getObservationAdapter(obj, propertyName, descriptor) {
-    var i, ii, observationAdapter;
-    for(i = 0, ii = this.observationAdapters.length; i < ii; i++){
-      observationAdapter = this.observationAdapters[i];
-      if (observationAdapter.handlesProperty(obj, propertyName, descriptor))
-        return observationAdapter;
+  getAdapterPropertyObserver(obj, propertyName, descriptor) {
+    var i = this.observationAdapters.length, observer;
+    while(i--) {
+      observer = this.observationAdapters[i].getPropertyObserver(obj, propertyName, descriptor);
+      if (observer)
+        return observer;
+    }
+    return null;
+  }
+
+  getAdapterArrayObserver(obj, taskQueue) {
+    var i = this.observationAdapters.length, observer;
+    while(i--) {
+      observer = this.observationAdapters[i].getArrayObserver(obj, taskQueue);
+      if (observer)
+        return observer;
     }
     return null;
   }
 
   createPropertyObserver(obj, propertyName){
-    var observerLookup, descriptor, handler, observationAdapter;
+    var observerLookup, descriptor, handler, observer, requiresDirtyCheck;
 
     if(obj instanceof Element){
       handler = this.eventManager.getElementHandler(obj, propertyName);
@@ -139,11 +155,14 @@ export class ObserverLocator {
       return new ComputedPropertyObserver(obj, propertyName, descriptor, this)
     }
 
-    if(descriptor && (descriptor.get || descriptor.set)){
-      // attempt to use an adapter before resorting to dirty checking.
-      observationAdapter = this.getObservationAdapter(obj, propertyName, descriptor);
-      if (observationAdapter)
-        return observationAdapter.getObserver(obj, propertyName, descriptor);
+    requiresDirtyCheck = descriptor && (descriptor.get || descriptor.set);
+
+    if ((requiresDirtyCheck || isFunction(obj[propertyName]))
+      && (observer = this.getAdapterPropertyObserver(obj, propertyName, descriptor))) {
+      return observer;
+    }
+
+    if(requiresDirtyCheck){
       return new DirtyCheckProperty(this.dirtyChecker, obj, propertyName);
     }
 
@@ -168,6 +187,13 @@ export class ObserverLocator {
       return array.__array_observer__;
     }
 
+    if (!Array.isArray(array)) {
+      array.__array_observer__ = this.getAdapterArrayObserver(array, this.taskQueue);
+      if (array.__array_observer__) {
+        return array.__array_observer__;
+      }
+    }
+
     return array.__array_observer__ = getArrayObserver(this.taskQueue, array);
   }
 
@@ -181,11 +207,11 @@ export class ObserverLocator {
 }
 
 export class ObjectObservationAdapter {
-  handlesProperty(object, propertyName, descriptor) {
-    throw new Error('BindingAdapters must implement handlesProperty(object, propertyName).');
+  getPropertyObserver(object, propertyName, descriptor) {
+    throw new Error('BindingAdapters must implement getPropertyObserver(object, propertyName, descriptor).');
   }
 
-  getObserver(object, propertyName, descriptor) {
-    throw new Error('BindingAdapters must implement createObserver(object, propertyName).');
+  getArrayObserver(array, taskQueue) {
+    throw new Error('BindingAdapters must implement getArrayObserver(array, taskQueue).');
   }
 }
