@@ -1,7 +1,7 @@
 import {Lexer,Token} from './lexer';
 import {Expression, ArrayOfExpression, Chain, ValueConverter, Assign,
         Conditional, AccessScope, AccessMember, AccessKeyed,
-        CallScope, CallFunction, CallMember, PrefixNot,
+        CallScope, CallFunction, CallMember, PrefixNot, BindingBehavior,
         Binary, LiteralPrimitive, LiteralArray, LiteralObject, LiteralString} from './ast';
 
 var EOF = new Token(-1, null);
@@ -44,7 +44,7 @@ export class ParserImplementation {
         this.error(`Unconsumed token ${this.peek.text}`);
       }
 
-      var expr = this.parseValueConverter();
+      var expr = this.parseBindingBehavior();
       expressions.push(expr);
 
       while (this.optional(';')) {
@@ -57,6 +57,25 @@ export class ParserImplementation {
     }
 
     return (expressions.length === 1) ? expressions[0] : new Chain(expressions);
+  }
+
+  parseBindingBehavior() {
+    var result = this.parseValueConverter();
+
+    while (this.optional('&')) {
+      var name = this.peek.text,
+          args = [];
+
+      this.advance();
+
+      while (this.optional(':')) {
+        args.push(this.parseExpression());
+      }
+
+      result = new BindingBehavior(result, name, args, [result].concat(args));
+    }
+
+    return result;
   }
 
   parseValueConverter() {

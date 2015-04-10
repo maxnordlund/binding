@@ -1,9 +1,9 @@
 export class CallExpression {
-  constructor(observerLocator, targetProperty, sourceExpression, valueConverterLookupFunction){
+  constructor(observerLocator, targetProperty, sourceExpression, lookupFunctions){
     this.observerLocator = observerLocator;
     this.targetProperty = targetProperty;
     this.sourceExpression = sourceExpression;
-    this.valueConverterLookupFunction = valueConverterLookupFunction;
+    this.lookupFunctions = lookupFunctions;
   }
 
   createBinding(target){
@@ -12,17 +12,17 @@ export class CallExpression {
       this.sourceExpression,
       target,
       this.targetProperty,
-      this.valueConverterLookupFunction
+      this.lookupFunctions
       );
   }
 }
 
 class Call {
-  constructor(observerLocator, sourceExpression, target, targetProperty, valueConverterLookupFunction){
+  constructor(observerLocator, sourceExpression, target, targetProperty, lookupFunctions){
     this.sourceExpression = sourceExpression
     this.target = target;
     this.targetProperty = observerLocator.getObserver(target, targetProperty);
-    this.valueConverterLookupFunction = valueConverterLookupFunction;
+    this.lookupFunctions = lookupFunctions;
   }
 
   bind(source){
@@ -36,7 +36,7 @@ class Call {
 
     this.source = source;
     this.targetProperty.setValue((...rest) => {
-      return this.sourceExpression.evaluate(source, this.valueConverterLookupFunction, rest);
+      return this.sourceExpression.evaluate(source, this.lookupFunctions, rest);
     });
   }
 

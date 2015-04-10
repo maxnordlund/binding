@@ -1,11 +1,12 @@
 export class ListenerExpression {
-  constructor(eventManager, targetEvent, sourceExpression, delegate, preventDefault){
+  constructor(eventManager, targetEvent, sourceExpression, delegate, preventDefault, lookupFunctions){
     this.eventManager = eventManager;
     this.targetEvent = targetEvent;
     this.sourceExpression = sourceExpression;
     this.delegate = delegate;
     this.discrete = true;
     this.preventDefault = preventDefault;
+    this.lookupFunctions = lookupFunctions;
   }
 
   createBinding(target){
@@ -15,22 +16,29 @@ export class ListenerExpression {
       this.delegate,
       this.sourceExpression,
       target,
-      this.preventDefault
+      this.preventDefault,
+      this.lookupFunctions
       );
   }
 }
 
-class Listener {
-  constructor(eventManager, targetEvent, delegate, sourceExpression, target, preventDefault){
+export class Listener {
+  constructor(eventManager, targetEvent, delegate, sourceExpression, target, preventDefault, lookupFunctions){
     this.eventManager = eventManager;
     this.targetEvent = targetEvent;
     this.delegate = delegate;
     this.sourceExpression = sourceExpression;
     this.target = target;
     this.preventDefault = preventDefault;
+    this.lookupFunctions = lookupFunctions;
   }
 
   bind(source){
+    var behavior, callSource;
+    if ('connectBehavior' in this.sourceExpression) {
+      behavior = this.behavior = this.sourceExpression.connectBehavior(this, source);
+    }
+
     if(this._disposeListener){
       if(this.source === source){
         return;
@@ -40,7 +48,7 @@ class Listener {
     }
 
     this.source = source;
-    this._disposeListener = this.eventManager.addEventListener(this.target, this.targetEvent, event =>{
+    callSource = event => {
       var prevEvent = source.$event;
       source.$event = event;
       var result = this.sourceExpression.evaluate(source);
@@ -49,10 +57,17 @@ class Listener {
         event.preventDefault();
       }
       return result;
-    }, this.delegate);
+    };
+    if (behavior) {
+      callSource = behavior.interceptUpdateSource(callSource);
+    }
+    this._disposeListener = this.eventManager.addEventListener(this.target, this.targetEvent, callSource, this.delegate);
   }
 
   unbind(){
+    if (this.behavior) {
+      this.behavior.unbind();
+    }
     if(this._disposeListener){
       this._disposeListener();
       this._disposeListener = null;
