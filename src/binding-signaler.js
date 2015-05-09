@@ -11,7 +11,7 @@ export class BindingSignaler {
     sources.push(source);
   }
 
-  unregisterBinding(binding) {
+  unregisterBinding(binding, source, name) {
     var bindings = this.bindings[name],
         sources = this.sources[name],
         index = bindings ? bindings.indexOf(binding) : -1;
